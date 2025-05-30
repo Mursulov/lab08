@@ -25,7 +25,7 @@ jobs:
     - name: Run tests
       run: |
         find build -name RunTest
-        ./build/RunTest
+        if [ -f build/RunTest ]; then ./build/RunTest; elif [ -f build/tests/RunTest ]; then ./build/tests/RunTest; else echo "RunTest not found"; exit 1; fi
     - name: Generate coverage report
       run: |
         lcov --capture --directory . --output-file coverage.info
