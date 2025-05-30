@@ -1,42 +1,82 @@
-name: Build and Test
+name: Build Project
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
 
 jobs:
-  build-and-test:
+  linux-build:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
-
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
     - name: Install dependencies
-      run: sudo apt-get update && sudo apt-get install -y lcov
-
-    - name: Configure and build with coverage
       run: |
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCODE_COVERAGE=ON
-        cmake --build build
-
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake dpkg-dev rpm lcov
+    
+    - name: Configure project
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+      
+    - name: Build project
+      run: cmake --build build --config Release --parallel $(nproc)
+      
     - name: Run tests
       run: |
         cd build
         ctest --output-on-failure
+        
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-packages
+        path: build/**
 
-    - name: Generate coverage report
+  windows-build:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup WiX
+      run: |
+        choco install wixtoolset -y
+        echo "WIX=C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $GITHUB_ENV
+        
+    - name: Configure and build
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=Release
+        cmake --build build --config Release
+        
+    - name: Upload Windows packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-packages
+        path: build/*.msi
+        if-no-files-found: warn
+
+  macos-build:
+    runs-on: macos-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Configure project
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+    - name: Build project
+      run: cmake --build build --config Release --parallel 2
+    - name: Run tests
       run: |
         cd build
-        lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch
-        lcov --remove coverage.info '/usr/*' --output-file coverage.cleaned.info
-        lcov --list coverage.cleaned.info
-
-    - name: Upload coverage to Coveralls
-      uses: coverallsapp/github-action@v2
+        ctest --output-on-failure
+    - name: Upload macOS packages
+      uses: actions/upload-artifact@v4
       with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        path-to-lcov: build/coverage.cleaned.info
-
+        name: macos-packages
+        path: build/*.dmg
+        if-no-files-found: warn
