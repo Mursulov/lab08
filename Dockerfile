@@ -22,7 +22,8 @@ RUN cd build && \
     cmake --build . --config Release --parallel $(nproc)
 
 
-RUN cd build && ./RunTest
+RUN find build -name RunTest
+RUN cd build/tests && ./RunTest
 
 
 RUN cd build && \
