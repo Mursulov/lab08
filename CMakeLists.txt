@@ -12,7 +12,7 @@ project(TestRunning
 )
 
 add_subdirectory(banking)
-add_subdirectory(external/googletest)
+add_subdirectory(googletest)
 add_subdirectory(tests)
 
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
