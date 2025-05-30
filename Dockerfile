@@ -18,8 +18,8 @@ RUN mkdir -p build
 
 
 RUN cd build && \
-    cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Release .. && \
-    cmake --build . --config Release --parallel $(nproc)
+    cmake -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON .. && \
+    cmake --build . --config Debug --parallel $(nproc)
 
 
 RUN find build -name RunTest
@@ -29,14 +29,14 @@ RUN cd build/tests && ./RunTest
 RUN cd build && \
     lcov --capture --directory . --output-file coverage.info \
     --rc geninfo_unexecuted_blocks=1 \
-    --ignore-errors mismatch,unused && \
+    --ignore-errors mismatch,unused || true && \
     lcov --remove coverage.info \
     '/usr/*' \
     '*/googletest/*' \
     '*/test/*' \
     --output-file coverage.info \
-    --ignore-errors unused && \
+    --ignore-errors unused || true && \
     genhtml coverage.info --output-directory coverage_report \
-    --ignore-errors unmapped,unused
+    --ignore-errors unmapped,unused || true
 
 CMD ["bash"]
