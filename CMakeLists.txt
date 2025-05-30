@@ -13,6 +13,7 @@ project(TestRunning
 
 add_subdirectory(banking)
 add_subdirectory(external/googletest)
+add_subdirectory(tests)
 if(BUILD_TESTS)
     find_package(Git REQUIRED)
     if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/googletest/CMakeLists.txt")
