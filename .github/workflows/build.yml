@@ -50,7 +50,14 @@ jobs:
   windows-build:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Init submodules
+      shell: pwsh
+      run: git submodule update --init --recursive
     - name: Setup WiX
       run: |
         choco install wixtoolset -y
