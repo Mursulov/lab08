@@ -23,7 +23,7 @@ RUN cd build && \
 
 
 RUN find build -name RunTest
-RUN cd build/tests && ./RunTest
+RUN find build -name RunTest -exec {} \;
 
 
 RUN cd build && \
