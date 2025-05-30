@@ -1,11 +1,7 @@
-# CMakeLists.txt for tests
 
-# Add test executable
 file(GLOB TEST_SOURCES *.cpp)
 add_executable(RunTest ${TEST_SOURCES})
 
-# Link with gtest, gmock, and your main targets
-# (Assuming 'banking' is your main library)
 target_link_libraries(RunTest PRIVATE banking gtest gmock gtest_main)
 
 target_include_directories(RunTest PRIVATE
