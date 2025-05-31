@@ -1,6 +1,6 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
-RUN apt-get update && apt-get install -y --fix-missing \
+RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
     git \
@@ -18,25 +18,24 @@ RUN mkdir -p build
 
 
 RUN cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE=ON .. && \
-    cmake --build . --config Debug --parallel $(nproc)
+    cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Release .. && \
+    cmake --build . --config Release --parallel $(nproc)
 
 
-RUN find build -name RunTest
-RUN find build -name RunTest -exec {} \;
+RUN cd build && ./RunTest
 
 
 RUN cd build && \
     lcov --capture --directory . --output-file coverage.info \
     --rc geninfo_unexecuted_blocks=1 \
-    --ignore-errors mismatch,unused || true && \
+    --ignore-errors mismatch,unused && \
     lcov --remove coverage.info \
     '/usr/*' \
     '*/googletest/*' \
     '*/test/*' \
     --output-file coverage.info \
-    --ignore-errors unused || true && \
+    --ignore-errors unused && \
     genhtml coverage.info --output-directory coverage_report \
-    --ignore-errors unmapped,unused || true
+    --ignore-errors unmapped,unused
 
 CMD ["bash"]

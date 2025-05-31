@@ -12,12 +12,47 @@ project(TestRunning
 )
 
 add_subdirectory(banking)
-add_subdirectory(googletest)
-add_subdirectory(tests)
+if(BUILD_TESTS)
+    find_package(Git REQUIRED)
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/googletest/CMakeLists.txt")
+        message(STATUS "Cloning googletest submodule...")
+        execute_process(
+            COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            RESULT_VARIABLE GIT_SUBMOD_RESULT
+        )
+        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+            message(FATAL_ERROR "Failed to initialize submodules")
+        endif()
+    endif()
 
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    set(BUILD_GMOCK ON CACHE BOOL "" FORCE)
+    set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+    add_subdirectory(googletest)
+    add_executable(RunTest test.cpp)
+
+    target_include_directories(RunTest PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/banking
+    )
+
+    target_link_libraries(RunTest PRIVATE
+        banking
+        gtest
+        gmock
+        gtest_main
+    )
+
+      if(COVERAGE)
+        target_compile_options(RunTest PRIVATE --coverage)
+        target_link_options(RunTest PRIVATE --coverage)
+    endif()
+    include(GoogleTest)
+    gtest_discover_tests(RunTest)
+endif()
 set(CPACK_PACKAGE_NAME "${PROJECT_NAME}")
-set(CPACK_PACKAGE_VENDOR "tyrtir")
-set(CPACK_PACKAGE_CONTACT "mihailokrivov@yandex.ru")
+set(CPACK_PACKAGE_VENDOR "mursulov")
+set(CPACK_PACKAGE_CONTACT "maks10122003m@gmail.com")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
@@ -33,9 +68,9 @@ if(WIN32)
     set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE.rtf")
 else()
     set(CPACK_GENERATOR "TGZ;DEB;RPM")
-    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "tyrtir <mihailokrivov@yandex.ru>")
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
 endif()
+
 
 include(InstallRequiredSystemLibraries)
 include(CPack)

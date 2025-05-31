@@ -55,159 +55,163 @@ build
 *.swo
 .DS_Store
 ```
-## Изменям main.yml
+## Изменям buil.yml
 ```
 name: Build and Test
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
 
 jobs:
-  linux-build:
+  linux-build-and-test:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential cmake dpkg-dev rpm lcov
-    
-    - name: Configure project
-      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
-      
-    - name: Build project
-      run: cmake --build build --config Release --parallel $(nproc)
-      
-    - name: Run tests
-      run: |
-        cd build
-        ctest --output-on-failure
-        
-    - name: Generate coverage report
-      if: success() && matrix.coverage == 'ON'
-      run: |
-        lcov --capture --directory . --output-file coverage.info
-        lcov --remove coverage.info '/usr/*' --output-file coverage.info
-        genhtml coverage.info --output-directory coverage_report
-        
-    - name: Create packages
-      run: |
-        cd build
-        cpack -G TGZ
-        cpack -G DEB
-        cpack -G RPM
-        
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: linux-packages
-        path: |
-          build/*.tar.gz
-          build/*.deb
-          build/*.rpm
-          build/coverage_report/**
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake dpkg-dev rpm lcov
+
+      # Debug build for тесты и покрытие
+      - name: Configure (Debug, coverage)
+        run: |
+          cmake -B build-debug -DCMAKE_BUILD_TYPE=Debug \
+                -DBUILD_TESTS=ON \
+                -DCMAKE_CXX_FLAGS="--coverage" -DCMAKE_C_FLAGS="--coverage"
+
+      - name: Build (Debug)
+        run: cmake --build build-debug --config Debug --parallel $(nproc)
+
+      - name: Run tests
+        run: |
+          cd build-debug
+          ctest --output-on-failure
+
+      - name: Generate coverage report
+        run: |
+          lcov --capture --directory build-debug --output-file build-debug/coverage.info --ignore-errors mismatch,unused --rc geninfo_unexecuted_blocks=1
+          lcov --remove build-debug/coverage.info '/usr/*' --output-file build-debug/coverage.info
+          genhtml build-debug/coverage.info --output-directory build-debug/coverage_report
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-coverage-report
+          path: build-debug/coverage_report/**
+
+      # Release build для проверки сборки и генерации пакетов (но не для релиза!)
+      - name: Configure (Release, packaging)
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+
+      - name: Build (Release)
+        run: cmake --build build --config Release --parallel $(nproc)
+
+      - name: Create packages
+        run: |
+          cd build
+          cpack -G TGZ
+          cpack -G DEB
+          cpack -G RPM
+
+      - name: Upload Linux artifacts (Release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          path: |
+            build/*.tar.gz
+            build/*.deb
+            build/*.rpm
 
   windows-build:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup WiX
-      run: |
-        choco install wixtoolset -y
-        echo "WIX=C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $GITHUB_ENV
-        
-    - name: Prepare license
-      shell: pwsh
-      run: |
-        if (!(Test-Path "LICENSE.rtf")) {" " | Out-File -Encoding ASCII "LICENSE.rtf"}
-    
-    - name: Configure and build
-      run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=Release
-        cmake --build build --config Release
-        
-    - name: Generate MSI
-      run: |
-        cd build
-        cpack -G WIX -C Release -V --debug
-        
-    - name: List Windows packages
-      shell: pwsh
-      run: |
-        ls build/*.msi -File | % { $_.FullName }
-        if (!(Test-Path "build/*.msi")) { Write-Output "No MSI package found" }
-        
-    - name: Upload Windows packages
-      uses: actions/upload-artifact@v4
-      with:
-        name: windows-packages
-        path: build/*.msi
-        if-no-files-found: warn
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup WiX
+        run: |
+          choco install wixtoolset -y
+          echo "WIX=C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $GITHUB_ENV
+
+      - name: Prepare license
+        shell: pwsh
+        run: |
+          if (!(Test-Path "LICENSE.rtf")) { " " | Out-File -Encoding ASCII "LICENSE.rtf" }
+
+      - name: Configure and build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: Generate MSI
+        run: |
+          cd build
+          cpack -G WIX -C Release -V --debug
+
+      - name: Upload Windows packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-packages
+          path: build/*.msi
+          if-no-files-found: warn
 
   macos-build:
     runs-on: macos-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-    - name: Configure project
-      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
-    - name: Build project
-      run: cmake --build build --config Release --parallel 2
-    - name: Run tests
-      run: |
-        cd build
-        ctest --output-on-failure
-    - name: Create DMG package
-      run: |
-        cd build
-        cpack -G DragNDrop
-        
-    - name: List macOS packages
-      run: |
-        ls -la build/*.dmg || echo "No DMG package found"
-        
-    - name: Upload macOS packages
-      uses: actions/upload-artifact@v4
-      with:
-        name: macos-packages
-        path: build/*.dmg
-        if-no-files-found: warn
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure project
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+      - name: Build project
+        run: cmake --build build --config Release --parallel 2
+      - name: Create DMG package
+        run: |
+          cd build
+          cpack -G DragNDrop
+
+      - name: Upload macOS packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-packages
+          path: build/*.dmg
+          if-no-files-found: warn
+
   docker-build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        submodules: recursive
-        
-    - name: Build Docker image
-      run: docker build -t banking-app .
-      
-    - name: Run tests in container
-      run: |
-        docker run --rm banking-app sh -c "cd /app/build && ./RunTest"
-        
-    - name: Extract coverage report
-      run: |
-        docker create --name banking-container banking-app
-        docker cp banking-container:/app/build/coverage_report ./docker_coverage
-        docker rm banking-container
-        
-    - name: Upload coverage report
-      uses: actions/upload-artifact@v4
-      with:
-        name: docker-coverage-report
-        path: ./docker_coverage
-        if-no-files-found: error
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build Docker image
+        run: docker build -t banking-app .
+
+      - name: Run tests in container
+        run: |
+          docker run --rm banking-app sh -c "cd /app/build && ./RunTest"
+
+      - name: Extract coverage report
+        run: |
+          docker create --name banking-container banking-app
+          docker cp banking-container:/app/build/coverage_report ./docker_coverage || true
+          docker rm banking-container
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-coverage-report
+          path: ./docker_coverage
+          if-no-files-found: warn
+
 ```
